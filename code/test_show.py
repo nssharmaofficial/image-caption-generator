@@ -12,7 +12,7 @@ from config import *
 from nltk.translate import bleu_score
 
 def generate_caption(image: torch.Tensor, image_encoder: Encoder, emb_layer: torch.nn.Embedding, image_decoder: Decoder, vocab: Vocab, device: torch.device) -> list[str]:
-    """ Generate caption of a single image of size (1, 3, 224, 224)
+    """ Generate caption of a single image of size (3, 224, 224)
 
     Returns:
         list[str]: caption for given image
