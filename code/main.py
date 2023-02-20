@@ -158,7 +158,7 @@ if __name__ == '__main__':
                 mask = (decoder_targets != vocab.PADDING_INDEX).float()
                 
                 features = image_encoder(image_batch) 
-                # features : (32, IMAGE_EMB_DIM)
+                # features : (BATCH, IMAGE_EMB_DIM)
                 features = features.unsqueeze(0) 
                 # features : (1, BATCH, IMAGE_EMB_DIM)
                 
