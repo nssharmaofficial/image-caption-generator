@@ -65,7 +65,7 @@ class Vocab:
             vocab_size (int): size of vocabulary (including 4 predefined tokens: <pad>, <sos>, <eos>, <unk>)
             
             file_name (str): name of the text file from which the vocabulary will be built.  
-                Note: the lines in file are assumed to be in form: 'word SPACE index' and it asssumes a header line (for example: 'captions.txt')
+                Note: the lines in file are assumed to be in form: 'img_file_name COMMA caption' and it asssumes a header line (for example: 'captions.txt')
         """
 
         filepath = os.path.join(self.config.ROOT, file_name)
