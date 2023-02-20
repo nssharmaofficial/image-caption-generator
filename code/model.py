@@ -64,7 +64,7 @@ class Decoder(nn.Module):
     
     def __init__(self, image_emb_dim:int, word_emb_dim:int, hidden_dim:int, num_layers:int, vocab_size:int, device:torch.device):
         """ Decoder taking as input for the LSTM layer the concatenation of features obtained from the encoder 
-        and embedded captions obtained from the embedding layer. Hidden and cell states are randomly initialized.
+        and embedded captions obtained from the embedding layer. Hidden and cell states are zero initialized.
         Final classifier is a linear layer with output dimension of the size of a vocabulary.
 
         Args:
