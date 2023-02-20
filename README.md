@@ -23,7 +23,7 @@ $ git clone https://github.com/natasabrisudova/ImageCaption_Flickr30k
 I have generated ```requirements.txt``` using ```pipreqs```:
 
 ```python
-> python -m  pipreqs.pipreqs --encoding utf-8 C:/Users/natas/NN_projects/ImageCaption/code/
+> python -m  pipreqs.pipreqs --encoding utf-8 C:/Users/natas/NN_projects/ImageCaption_Flickr30k/code/
 ```
 
 **Note**: I prefer using ```pipreqs``` more than ```pip freeze```, as ```pip freeze``` saves all packages in the environment including those that you don't use in your current project. However, ```pipreqs only``` save the ones you are using in your project.
