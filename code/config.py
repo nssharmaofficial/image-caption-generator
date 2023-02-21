@@ -23,7 +23,7 @@ class Config(object):
         self.ENCODER_WEIGHT_FILE = 'checkpoints/encoder-32B-1024H-1L-e5.pt'
         self.DECODER_WEIGHT_FILE = 'checkpoints/decoder-32B-1024H-1L-e5.pt'
         
-        self.ROOT = os.path.join(os.path.expanduser('~'), 'NN_projects', 'ImageCaption2') 
+        self.ROOT = os.path.join(os.path.expanduser('~'), 'NN_projects', 'ImageCaption_Flickr30k') 
 
         
         
