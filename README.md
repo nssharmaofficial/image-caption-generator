@@ -93,7 +93,7 @@ Embedding layer is used to obtain embedded representation (as a dense vector) of
 
 ### Decoder
 
-Decoder taking as input for the LSTM layer the concatenation of features obtained from the encoder and embedded captions obtained from the embedding layer. Hidden and cell states are randomly initialized as tensors of size. Final classifier is a linear layer with output dimension of ```(VOCAB_SIZE)```.
+Decoder taking as input for the LSTM layer the concatenation of features obtained from the encoder and embedded captions obtained from the embedding layer. Hidden and cell states are zero initialized. Final classifier is a linear layer with output dimension of ```(VOCAB_SIZE)```.
 
 **Note**: during the training and evaluation, the model is used to generate captions ***word-by-word***, therefore the dimension of the embedded captions before the concatenation will be ```(length = 1, BATCH, WORD_EMB_DIM)```, and the dimension of features will be ```(1, BATCH,  IMAGE_EMB_DIM)```. The hidden and cell states are initialized to a tensor of size ```(NUM_LAYER, BATCH, HIDDEN_DIM)``` where ```HIDDEN_DIM = IMAGE_EMB_DIM + WORD_EMB_DIM```.
 
