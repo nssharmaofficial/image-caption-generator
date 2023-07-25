@@ -37,7 +37,7 @@ class ImageCaptionDataset():
 
         Args:
             captions_text_file (str): text file of captions in config.ROOT path.
-                Note: the lines in file are assumed to be in form: 'word SPACE index' and it asssumes a header line 
+                Note: the lines in file are assumed to be in form: 'img_file COMMA caption SPACE index' and it asssumes a header line 
                 
             vocab (Vocab): vocabulary object with built vocabulary for splitting the captions and performing word2index()
             
@@ -60,7 +60,8 @@ class ImageCaptionDataset():
                 # skip header line
                 if i == 0:
                     continue  
-                
+                    
+                # sample: img_file COMMA caption
                 sample = line.strip().lower().split(",",1)
 
                 image_id = sample[0]
