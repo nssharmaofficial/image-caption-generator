@@ -95,8 +95,6 @@ Embedding layer is used to obtain embedded representation (as a dense vector) of
 
 Decoder taking as input for the LSTM layer the concatenation of features obtained from the encoder and embedded captions obtained from the embedding layer. Hidden and cell states are zero initialized. Final classifier is a linear layer with output dimension of ```(VOCAB_SIZE)```.
 
-**Note**: during the training and evaluation, the model is used to generate captions ***word-by-word***, therefore the dimension of the embedded captions before the concatenation will be ```(length = 1, BATCH, WORD_EMB_DIM)```, and the dimension of features will be ```(1, BATCH,  IMAGE_EMB_DIM)```. The hidden and cell states are initialized to a tensor of size ```(NUM_LAYER, BATCH, HIDDEN_DIM)``` where ```HIDDEN_DIM = IMAGE_EMB_DIM + WORD_EMB_DIM```.
-
 <br>
 
 
@@ -136,6 +134,22 @@ If not done already, create specific folder 'checkpoints' in 'code' folder to st
 ## Training and evaluating data
 
 To train the model run ```main.py```.
+
+<br>
+
+**Note**: during the training and evaluation, the model is used to generate captions ***word-by-word*** over the ```SEQ_LENGTH-1``` loop (ignoring the last ```<eos>``` token), therefore the dimension of the embedded captions before the concatenation will be ```(length = j+1, BATCH, WORD_EMB_DIM)```, and the dimension of features will be ```(j+1, BATCH,  IMAGE_EMB_DIM)```. The hidden and cell states are initialized to a tensor of size ```(NUM_LAYER, BATCH, HIDDEN_DIM)``` where ```HIDDEN_DIM = IMAGE_EMB_DIM + WORD_EMB_DIM```.
+
+<br> 
+
+So for example the caption: '```<sos>``` dog is running outside ```<eos>```' will be trained over loop:
+- starting with ```<sos>``` token: ```<sos>``` <word_to_be_predicted>' → then <word_to_be_predicted> is compared to the original next word
+- ```<sos>``` dog <word_to_be_predicted> 
+- ```<sos>``` dog is <word_to_be_predicted> 
+- ```<sos>``` dog is running <word_to_be_predicted> 
+- ```<sos>``` dog is running outside <word_to_be_predicted> → so that we learn to predict the ```<eos>``` as well 
+
+<br>
+
 After training the model you can visualize the results on validation data by running ```test_show.py```. It will show the image along with the title containing real captions, generated captions and the BLEU score (1 and 2).
 
 Model with **B = 32** and **HIDDEN_DIM = 1024**:
