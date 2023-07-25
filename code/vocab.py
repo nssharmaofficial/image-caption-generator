@@ -137,7 +137,7 @@ class Vocab:
 
         Args:
             file_name (str): name of the text file where the vocabulary will be saved (i.e 'word2index.txt')
-                Note: the lines in file will be in form: 'word SPACE index' and it asssumes a header line 
+                Note: the lines in file will be in form: 'word SPACE index' 
         """
 
         filepath = os.path.join(self.config.ROOT, file_name)
@@ -154,7 +154,7 @@ class Vocab:
         Args:
         
             file_name (str): name of the text file where the vocabulary is saved (i.e 'word2index.txt')
-                Note: the lines in file are assumed to be in form: 'word SPACE index' and it asssumes a header line 
+                Note: the lines in file are assumed to be in form: 'word SPACE index'  
         """
 
         filepath =  os.path.join(self.config.ROOT, file_name)
