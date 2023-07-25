@@ -71,22 +71,13 @@ if __name__ == '__main__':
             decoder_inputs = captions_batch[:, :]
             mask = (decoder_targets != vocab.PADDING_INDEX).float()
             # all : (BATCH, SEQ_LENGTH)
-            
-            features = image_encoder.forward(images_batch)
-            # features : (BATCH, IMAGE_EMB_DIM)
-            features = features.unsqueeze(0) 
-            # features : (1, BATCH, IMAGE_EMB_DIM)
-            
+        
             t_loss = 0
             t_accuracy = 0
             
             BATCH_SIZE = captions_batch.shape[0]
             SEQ_LENGTH = captions_batch.shape[1] 
-            
-            hidden= image_decoder.hidden_state_0.repeat(1,BATCH_SIZE,1) 
-            cell =image_decoder.cell_state_0.repeat(1,BATCH_SIZE,1)
-            # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
-            
+
             emb_captions_batch = emb_layer.forward(decoder_inputs) 
             # captions_batch : (BATCH, SEQ_LENGTH, WORD_EMB_DIM)
             emb_captions_batch = emb_captions_batch.permute(1,0,2) 
@@ -94,19 +85,27 @@ if __name__ == '__main__':
             
             # word by word prediction
             for j in range(SEQ_LENGTH-1):
-                          
-                emb_word_batch = emb_captions_batch[j,:,:] 
-                # lstm_input : (--SEQ_LENGTH--, BATCH, WORD_EMB_DIM) -> (BATCH, WORD_EMB_DIM)
-                emb_word_batch = emb_word_batch.unsqueeze(0)
-                # lstm_input : (1, BATCH, WORD_EMB_DIM)
                 
-                output, (hidden, cell) = image_decoder.forward(emb_word_batch, features, hidden, cell)
-                # output : (1, BATCH, VOCAB_SIZE)
+                hidden= image_decoder.hidden_state_0.repeat(1,BATCH_SIZE,1) 
+                cell =image_decoder.cell_state_0.repeat(1,BATCH_SIZE,1)
                 # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
                 
-                output = output.squeeze(0) 
-                # output : (BATCH, VOCAB_SIZE)
+                features = image_encoder.forward(images_batch)
+                # features : (BATCH, IMAGE_EMB_DIM)
+                features = features.unsqueeze(0) 
+                # features : (1, BATCH, IMAGE_EMB_DIM)
+                features = features.repeat(j+1, 1, 1)
+                # features : (j+1, BATCH, IMAGE_EMB_DIM)
+                          
+                emb_word_batch = emb_captions_batch[:j+1,:,:] 
+                # emb_word_batch : (j+1, BATCH, WORD_EMB_DIM)
                 
+                output, (hidden, cell) = image_decoder.forward(emb_word_batch, features, hidden, cell)
+                # output : (j+1, BATCH, VOCAB_SIZE)
+                # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
+                
+                output = output[-1,:,:]
+        
                 # sum up loss and accuracy for each word (!=pad) in sentence for each training example in batch
                 t_loss += criterion(output, decoder_targets[:, j+1]) * mask[:, j+1]
                 t_accuracy += get_acc(output, decoder_targets[:, j+1]) * mask[:, j+1]
@@ -121,10 +120,10 @@ if __name__ == '__main__':
             optimizer.step()
             
             # Print stats every 100 iterations
-            if i % 500 == 0:
+            if i % 100 == 0:
                 print("Epoch: [%d/%d], Step: [%d/%d], Loss: %.3f, Accuracy: %.3f " % (epoch+1, config.EPOCHS, i, len(train_loader), t_loss.item(), t_accuracy*100))     
                 
-            # store results for each batch    
+            # store results for each batch  
             t_loss = t_loss.to(torch.device("cpu"))
             t_accuracy = t_accuracy.to(torch.device("cpu"))
             training_batch_losses.append(t_loss) 
@@ -139,7 +138,8 @@ if __name__ == '__main__':
         torch.cuda.empty_cache()
         gc.collect()
         
-        print(training_losses, training_acc)
+        #print(training_losses, training_acc)
+        
         
         for k, batch in enumerate(val_loader):
             
@@ -156,21 +156,12 @@ if __name__ == '__main__':
                 decoder_targets = captions_batch[:, :] 
                 decoder_inputs = captions_batch[:, :]
                 mask = (decoder_targets != vocab.PADDING_INDEX).float()
-                
-                features = image_encoder(image_batch) 
-                # features : (BATCH, IMAGE_EMB_DIM)
-                features = features.unsqueeze(0) 
-                # features : (1, BATCH, IMAGE_EMB_DIM)
-                
+
                 v_loss = 0
                 v_accuracy = 0
 
                 BATCH_SIZE = captions_batch.shape[0]
                 SEQ_LENGTH = captions_batch.shape[1]
-                
-                hidden= image_decoder.hidden_state_0.repeat(1,BATCH_SIZE,1) 
-                cell =image_decoder.cell_state_0.repeat(1,BATCH_SIZE,1) 
-                # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
                 
                 emb_captions_batch = emb_layer(decoder_inputs) 
                 # captions_batch : (BATCH, SEQ_LENGTH, WORD_EMB_DIM)
@@ -178,19 +169,27 @@ if __name__ == '__main__':
                 # captions_batch : (SEQ_LENGTH, BATCH, WORD_EMB_DIM)
             
                 for j in range(SEQ_LENGTH-1):
-                                
-                    emb_word_batch = emb_captions_batch[j,:,:] 
-                    # lstm_input : (--SEQ_LENGTH--, BATCH, WORD_EMB_DIM) -> (BATCH, WORD_EMBD_DIM)
-                    emb_word_batch = emb_word_batch.unsqueeze(0) 
-                    # lstm_input : (1, BATCH, WORD_EMB_DIM)
+                    
+                    hidden= image_decoder.hidden_state_0.repeat(1,BATCH_SIZE,1) 
+                    cell =image_decoder.cell_state_0.repeat(1,BATCH_SIZE,1)
+                    # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
+                    
+                    features = image_encoder.forward(image_batch)
+                    # features : (BATCH, IMAGE_EMB_DIM)
+                    features = features.unsqueeze(0) 
+                    # features : (1, BATCH, IMAGE_EMB_DIM)
+                    features = features.repeat(j+1, 1, 1)
+                    # features : (j+1, IMAGE_EMB_DIM)
+                            
+                    emb_word_batch = emb_captions_batch[:j+1,:,:] 
+                    # emb_word_batch : (j+1, BATCH, WORD_EMB_DIM)
                     
                     output, (hidden, cell) = image_decoder(emb_word_batch, features, hidden, cell)
-                    # output : (1, BATCH, VOCAB_SIZE)
+                    # output : (j+1, BATCH, VOCAB_SIZE)
                     # hidden and cell : (1, BATCH,HIDDEN_DIM)
                     
-                    output = output.squeeze(0)
-                    # output : (BATCH, VOCAB_SIZE)
-                    
+                    output = output[-1,:,:]
+
                     # sum up loss and accuracy for each word (!=pad) in sentence for each validation example in batch
                     v_loss += criterion(output, decoder_targets[:, j+1]) * mask[:, j+1]
                     v_accuracy += get_acc(output, decoder_targets[:, j+1]) * mask[:, j+1]
@@ -200,7 +199,7 @@ if __name__ == '__main__':
                 v_accuracy = v_accuracy.sum() / mask.sum().item()   
                                 
                 # Print stats every 100 iterations
-                if k % 500 == 0:
+                if k % 100 == 0:
                     print("Epoch: [%d/%d], Step: [%d/%d], Loss: %.3f,  Accuracy: %.3f " % (epoch+1, config.EPOCHS, k, len(val_loader), v_loss.item(), v_accuracy*100))  
             
                 # store results for each batch
@@ -219,7 +218,7 @@ if __name__ == '__main__':
         torch.cuda.empty_cache()
         gc.collect()
         
-        print(validation_losses, validation_acc)
+        #print(validation_losses, validation_acc)
 
         # save model after every epoch
         torch.save(image_encoder.state_dict(), f"checkpoints/encoder-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L-e{epoch+1}.pt")
@@ -245,6 +244,4 @@ if __name__ == '__main__':
     plt.ylabel('Loss')
     plt.legend(['Train', 'Validation'])
     
-    plt.savefig('saved/Plots.jpg')
-
-
+    plt.savefig(f'saved/NEW2-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L.jpg')
