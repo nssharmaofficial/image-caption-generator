@@ -20,8 +20,8 @@ class Config(object):
         self.HIDDEN_DIM = 1024
         self.LR = 0.001
 
-        self.EMBEDDING_WEIGHT_FILE = 'checkpoints/embeddings-32B-1024H-1L-e5.pt'
-        self.ENCODER_WEIGHT_FILE = 'checkpoints/encoder-32B-1024H-1L-e5.pt'
-        self.DECODER_WEIGHT_FILE = 'checkpoints/decoder-32B-1024H-1L-e5.pt'
+        self.EMBEDDING_WEIGHT_FILE = 'code/checkpoints/embeddings-32B-1024H-1L-e5.pt'
+        self.ENCODER_WEIGHT_FILE = 'code/checkpoints/encoder-32B-1024H-1L-e5.pt'
+        self.DECODER_WEIGHT_FILE = 'code/checkpoints/decoder-32B-1024H-1L-e5.pt'
 
         self.ROOT = os.path.join(os.path.expanduser('~'), 'Github', 'ImageCaption_Flickr30k')
