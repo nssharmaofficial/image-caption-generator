@@ -17,7 +17,6 @@ pip3 install -r requirements.txt
 ```
 
 - You can download the images and captions [here](https://www.kaggle.com/datasets/adityajn105/flickr30k).
-- Create a specific folder in ROOT path (for example `images`) for images.
 - Captions were split 70/30 into `train_list.txt` and `val_list.txt`.
 
 ## Vocabulary
