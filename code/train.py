@@ -1,5 +1,6 @@
 import torch
 import torch.utils.data
+from matplotlib import pyplot as plt
 from config import Config
 from dataset import (ImageCaptionDataset, get_data_loader, preprocessing_transforms)
 from model import Decoder, Encoder, get_acc
@@ -16,8 +17,8 @@ if __name__ == '__main__':
     vocab.load_vocab(config.VOCAB_FILE)
 
     print("Creating ImageCaptionDataset...")
-    train_data = ImageCaptionDataset('train_list.txt', vocab, 'images', transform=preprocessing_transforms())
-    val_data = ImageCaptionDataset('val_list.txt', vocab, 'images', transform=preprocessing_transforms())
+    train_data = ImageCaptionDataset('train_list_sorted.txt', vocab, 'images', transform=preprocessing_transforms())
+    val_data = ImageCaptionDataset('val_list.txt_sorted', vocab, 'images', transform=preprocessing_transforms())
 
     print("Setting up data loaders...")
     train_loader = get_data_loader(train_data, batch_size=config.BATCH, pad_index=vocab.PADDING_INDEX)
@@ -29,8 +30,7 @@ if __name__ == '__main__':
     emb_layer = torch.nn.Embedding(num_embeddings=config.VOCAB_SIZE,
                                    embedding_dim=config.WORD_EMB_DIM,
                                    padding_idx=vocab.PADDING_INDEX)
-    image_decoder = Decoder(image_emb_dim=config.IMAGE_EMB_DIM,
-                            word_emb_dim=config.WORD_EMB_DIM,
+    image_decoder = Decoder(word_emb_dim=config.WORD_EMB_DIM,
                             hidden_dim=config.HIDDEN_DIM,
                             num_layers=config.NUM_LAYER,
                             vocab_size=config.VOCAB_SIZE,
@@ -84,37 +84,44 @@ if __name__ == '__main__':
             emb_captions_batch = emb_captions_batch.permute(1, 0, 2)
             # captions_batch : (SEQ_LENGTH, BATCH, WORD_EMB_DIM)
 
-            # word by word prediction
+            # Process the current word through the image encoder
+            features = image_encoder.forward(images_batch)
+            features = features.unsqueeze(0) 
+            # features: (1, BATCH, IMAGE_EMB_DIM)
+
+            # initialize hidden and cell state
+            hidden = features.repeat(config.NUM_LAYER, 1, 1)
+            cell = features.repeat(config.NUM_LAYER, 1, 1)
+            # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
+
+            # Loop through each time step
             for j in range(SEQ_LENGTH-1):
+                # Get the embedding for the current word
+                emb_word = emb_captions_batch[j, :, :] 
+                # emb_word: (BATCH, WORD_EMB_DIM)
+                emb_word = emb_word.unsqueeze(0)
+                # emb_word: (1, BATCH, WORD_EMB_DIM)
 
-                hidden = image_decoder.hidden_state_0.repeat(1, BATCH_SIZE, 1)
-                cell = image_decoder.cell_state_0.repeat(1, BATCH_SIZE, 1)
-                # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
+                # Pass current word embedding and features through the decoder
+                output, (hidden, cell) = image_decoder.forward(embedded_captions=emb_word,
+                                                                hidden=hidden,
+                                                                cell=cell)
+                # output: (1, BATCH, VOCAB_SIZE)
+                # hidden and cell: (NUM_LAYER, BATCH, HIDDEN_DIM)
 
-                features = image_encoder.forward(images_batch)
-                # features : (BATCH, IMAGE_EMB_DIM)
-                features = features.unsqueeze(0)
-                # features : (1, BATCH, IMAGE_EMB_DIM)
-                features = features.repeat(j+1, 1, 1)
-                # features : (j+1, BATCH, IMAGE_EMB_DIM)
+                # Get the prediction for the current word
+                output = output.squeeze(0)
+                # output: (BATCH, VOCAB_SIZE)
 
-                emb_word_batch = emb_captions_batch[: j+1, :, :]
-                # emb_word_batch : (j+1, BATCH, WORD_EMB_DIM)
-
-                output, (hidden, cell) = image_decoder.forward(emb_word_batch, features, hidden, cell)
-                # output : (j+1, BATCH, VOCAB_SIZE)
-                # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
-
-                output = output[-1, :, :]
-
-                # sum up loss and accuracy for each word (!=pad) in sentence for each training example in batch
+                # Calculate loss and accuracy for the current word
                 t_loss += criterion(output, decoder_targets[:, j+1]) * mask[:, j+1]
                 t_accuracy += get_acc(output, decoder_targets[:, j+1]) * mask[:, j+1]
 
-            # loss summed up through batch divided by the total number of words (!=pad) in batch
+            # Average loss and accuracy
             t_loss = t_loss.sum() / mask.sum().item()
             t_accuracy = t_accuracy.sum() / mask.sum().item()
 
+            # Perform backpropagation
             optimizer.zero_grad()
             t_loss.backward()
             optimizer.step()
@@ -172,33 +179,40 @@ if __name__ == '__main__':
                 emb_captions_batch = emb_captions_batch.permute(1, 0, 2)
                 # captions_batch : (SEQ_LENGTH, BATCH, WORD_EMB_DIM)
 
+                # Process the current word through the image encoder
+                features = image_encoder.forward(images_batch)
+                features = features.unsqueeze(0) 
+                # features: (1, BATCH, IMAGE_EMB_DIM)
+
+                # initialize hidden and cell state
+                hidden = features.repeat(config.NUM_LAYER, 1, 1)
+                cell = features.repeat(config.NUM_LAYER, 1, 1)
+                # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
+
+                # Loop through each time step
                 for j in range(SEQ_LENGTH-1):
+                    # Get the embedding for the current word
+                    emb_word = emb_captions_batch[j, :, :] 
+                    # emb_word: (BATCH, WORD_EMB_DIM)
+                    emb_word = emb_word.unsqueeze(0)
+                    # emb_word: (1, BATCH, IMAGE_EMB_DIM)
 
-                    hidden = image_decoder.hidden_state_0.repeat(1, BATCH_SIZE, 1)
-                    cell = image_decoder.cell_state_0.repeat(1, BATCH_SIZE, 1)
-                    # hidden and cell : (NUM_LAYER, BATCH, HIDDEN_DIM)
+                    # Pass current word embedding and features through the decoder
+                    output, (hidden, cell) = image_decoder.forward(embedded_captions=emb_word,
+                                                                   hidden=hidden,
+                                                                   cell=cell)
+                    # output: (1, BATCH, VOCAB_SIZE)
+                    # hidden and cell: (NUM_LAYER, BATCH, HIDDEN_DIM)
 
-                    features = image_encoder.forward(image_batch)
-                    # features : (BATCH, IMAGE_EMB_DIM)
-                    features = features.unsqueeze(0)
-                    # features : (1, BATCH, IMAGE_EMB_DIM)
-                    features = features.repeat(j+1, 1, 1)
-                    # features : (j+1, IMAGE_EMB_DIM)
+                    # Get the prediction for the current word
+                    output = output.squeeze(0)
+                    # output: (BATCH, VOCAB_SIZE)
 
-                    emb_word_batch = emb_captions_batch[: j+1, :, :]
-                    # emb_word_batch : (j+1, BATCH, WORD_EMB_DIM)
-
-                    output, (hidden, cell) = image_decoder(emb_word_batch, features, hidden, cell)
-                    # output : (j+1, BATCH, VOCAB_SIZE)
-                    # hidden and cell : (1, BATCH,HIDDEN_DIM)
-
-                    output = output[-1, :, :]
-
-                    # sum up loss and accuracy for each word (!=pad) in sentence for each validation example in batch
+                    # Calculate loss and accuracy for the current word
                     v_loss += criterion(output, decoder_targets[:, j+1]) * mask[:, j+1]
                     v_accuracy += get_acc(output, decoder_targets[:, j+1]) * mask[:, j+1]
 
-                # loss summed up through batch divided by the total number of words (!=pad) in batch
+                # Average loss and accuracy
                 v_loss = v_loss.sum() / mask.sum().item()
                 v_accuracy = v_accuracy.sum() / mask.sum().item()
 
@@ -236,8 +250,6 @@ if __name__ == '__main__':
         torch.save(image_decoder.state_dict(),
                    f"code/checkpoints/decoder-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L-e{epoch+1}.pt")
 
-    from matplotlib import pyplot as plt
-
     plt.subplot(1, 2, 1)
     plt.plot(training_acc)
     plt.plot(validation_acc)
@@ -254,4 +266,4 @@ if __name__ == '__main__':
     plt.ylabel('Loss')
     plt.legend(['Train', 'Validation'])
 
-    plt.savefig(f'saved/NEW2-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L.jpg')
+    plt.savefig(f'code/saved/{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L.jpg')

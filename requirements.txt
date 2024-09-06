@@ -1,5 +1,12 @@
+torch==2.3.1+cu118
+torchvision==0.18.1
+torchaudio==2.3.1+cu118
+pytorch-ignite==0.4.11
+numpy==1.24.0
+Pillow==9.5.0
 matplotlib==3.6.2
-nltk==3.8
-Pillow==9.4.0
-torch==1.13.1+cu116
-torchvision==0.14.1+cu116
+scipy==1.11.1
+nltk==3.8.1
+opencv-python==4.8.1.78
+pandas==2.0.3
+tqdm==4.65.0

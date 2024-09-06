@@ -231,11 +231,11 @@ if __name__ == '__main__':
 
         # save model after every epoch
         torch.save(image_encoder.state_dict(),
-                   f"checkpoints/NEW_encoder-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L-e{epoch+1}.pt")
+                   f"code/checkpoints/encoder-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L-e{epoch+1}.pt")
         torch.save(emb_layer.state_dict(),
-                   f"checkpoints/NEW_embeddings-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L-e{epoch+1}.pt")
+                   f"code/checkpoints/embeddings-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L-e{epoch+1}.pt")
         torch.save(image_decoder.state_dict(),
-                   f"checkpoints/NEW_decoder-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L-e{epoch+1}.pt")
+                   f"code/checkpoints/decoder-{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L-e{epoch+1}.pt")
 
     from matplotlib import pyplot as plt
 
@@ -255,4 +255,4 @@ if __name__ == '__main__':
     plt.ylabel('Loss')
     plt.legend(['Train', 'Validation'])
 
-    plt.savefig(f'saved/NEW_{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L.jpg')
+    plt.savefig(f'saved/{config.BATCH}B-{config.HIDDEN_DIM}H-{config.NUM_LAYER}L.jpg')

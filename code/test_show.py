@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import torch
-import torch.utils.data
 from dataset import (ImageCaptionDataset, denormalize, get_data_loader,
                      preprocessing_transforms)
 from vocab import Vocab
@@ -17,69 +16,77 @@ def generate_caption(image: torch.Tensor,
                      vocab: Vocab,
                      device: torch.device) -> list[str]:
     """
-    Generate caption of a single image of size (3, 224, 224).
-    Generating of caption starts with <sos>, and each next predicted word ID
-    is appended for the next LSTM input until the sentence reaches MAX_LENGTH or <eos>.
+    Generate a caption for a given image tensor.
+
+    The caption generation starts with the <sos> token. In each iteration, the model predicts the
+    next word based on the current LSTM state and appends the predicted word to the caption.
+    This process continues until the <eos> token is generated or the caption reaches MAX_LENGTH.
+
+    Args:
+        image (torch.Tensor): Input image of size (3, 224, 224).
+        image_encoder (Encoder): The image encoder model.
+        emb_layer (torch.nn.Embedding): The embedding layer for word embeddings.
+        image_decoder (Decoder): The image decoder model.
+        vocab (Vocab): Vocabulary object for token-to-word conversions.
+        device (torch.device): Device to run the models on (CPU or GPU).
 
     Returns:
-        list[str]: caption for given image
+        list[str]: List of words forming the generated caption.
     """
+
+    config = Config()
 
     image = image.to(device)
     # image: (3, 224, 224)
     image = image.unsqueeze(0)
     # image: (1, 3, 224, 224)
 
-    hidden = image_decoder.hidden_state_0
-    cell = image_decoder.cell_state_0
-    # hidden, cell : (NUM_LAYER, 1, HIDDEN_DIM)
+    features = image_encoder(image)
+    # features: (1, IMAGE_EMB_DIM)
+    features = features.to(device)
+    features = features.unsqueeze(0)
+    # features: (1, 1, IMAGE_EMB_DIM)
+
+    # Initialize hidden and cell state
+    hidden = features.repeat(config.NUM_LAYER, 1, 1)
+    cell = features.repeat(config.NUM_LAYER, 1, 1)
+    # hidden and cell: (NUM_LAYER, 1, HIDDEN_DIM)
 
     sentence = []
 
-    # initialize LSTM input to SOS token = 1
-    input_words = [vocab.SOS]
+    # Initialize LSTM input with SOS token
+    input_word = [vocab.SOS]
 
     MAX_LENGTH = 20
 
-    for i in range(MAX_LENGTH):
+    for _ in range(MAX_LENGTH):
 
-        features = image_encoder.forward(image)
-        # features: (1, IMAGE_EMB_DIM)
-        features = features.to(device)
-        features = features.unsqueeze(0)
-        # features: (1, 1, IMAGE_EMB_DIM)
+        input_word_tensor = torch.tensor([input_word])
+        # input_word_tensor: (1, 1)
+        input_word_tensor = input_word_tensor.to(device)
 
-        input_words_tensor = torch.tensor([input_words])
-        # input_word_tensor : (B=1, SEQ_LENGTH)
-        input_words_tensor = input_words_tensor.to(device)
+        lstm_input = emb_layer(input_word_tensor)
+        # lstm_input: (1, 1, WORD_EMB_DIM)
 
-        lstm_input = emb_layer.forward(input_words_tensor)
-        # lstm_input : (B=1, SEQ_LENGTH, WORD_EMB_DIM)
-
-        lstm_input = lstm_input.permute(1, 0, 2)
-        # lstm_input : (SEQ_LENGTH, B=1, WORD_EMB_DIM)
-        SEQ_LENGTH = lstm_input.shape[0]
-
-        features = features.repeat(SEQ_LENGTH, 1, 1)
-        # features : (SEQ_LENGTH, B=1, IMAGE_EMB_DIM)
-
-        next_id_pred, (hidden, cell) = image_decoder.forward(lstm_input, features, hidden, cell)
-        # next_id_pred : (SEQ_LENGTH, 1, VOCAB_SIZE)
+        next_id_pred, (hidden, cell) = image_decoder(embedded_captions=lstm_input,
+                                                     hidden=hidden,
+                                                     cell=cell)
+        # next_id_pred: (1, 1, VOCAB_SIZE)
 
         next_id_pred = next_id_pred[-1, 0, :]
-        # next_id_pred : (VOCAB_SIZE)
+        # next_id_pred: (VOCAB_SIZE)
         next_id_pred = torch.argmax(next_id_pred)
 
-        # append it to input_words which will be again as input for LSTM
-        input_words.append(next_id_pred.item())
+        input_word = [next_id_pred.item()]
 
-        # id --> word
+        # Convert ID to word
         next_word_pred = vocab.index_to_word(int(next_id_pred.item()))
-        sentence.append(next_word_pred)
 
-        # stop if we predict '<eos>'
+        # Stop if <eos> is predicted
         if next_word_pred == vocab.index2word[vocab.EOS]:
             break
+
+        sentence.append(next_word_pred)
 
     return sentence
 
@@ -101,8 +108,7 @@ if __name__ == '__main__':
     emb_layer = torch.nn.Embedding(num_embeddings=config.VOCAB_SIZE,
                                    embedding_dim=config.WORD_EMB_DIM,
                                    padding_idx=vocab.PADDING_INDEX)
-    image_decoder = Decoder(image_emb_dim=config.IMAGE_EMB_DIM,
-                            word_emb_dim=config.WORD_EMB_DIM,
+    image_decoder = Decoder(word_emb_dim=config.WORD_EMB_DIM,
                             hidden_dim=config.HIDDEN_DIM,
                             num_layers=config.NUM_LAYER,
                             vocab_size=config.VOCAB_SIZE,
@@ -124,7 +130,7 @@ if __name__ == '__main__':
     image_decoder = image_decoder.to(config.DEVICE)
 
     print('Visualizing results...')
-    val_loader = get_data_loader(val_data, batch_size=32, pad_index=vocab.PADDING_INDEX)
+    val_loader = get_data_loader(val_data, batch_size=32, pad_index=vocab.PADDING_INDEX, shuffle=True)
     x, y = next(iter(val_loader))
 
     for image, caption in zip(x, y):

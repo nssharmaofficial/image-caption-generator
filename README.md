@@ -1,131 +1,128 @@
-# ImageCaption
+# 📸 Image caption generator
 
-Image captioning model in pytorch using Resnet50 as encoder and LSTM as decoder.
+A PyTorch-based image captioning model using ResNet50 as the encoder and LSTM as the decoder. This model generates captions for images by learning from the Flickr30k dataset.
 
-## How to run this code
+You can run the inference of the trained model on [🤗 Hugging Face - ImageCaption](https://huggingface.co/spaces/nssharmaofficial/ImageCaption).
 
-You'll need [Git](https://git-scm.com) to be installed on your computer.
+## 🛠️ Setup and Installation
+
+To get started, you'll need [Git](https://git-scm.com) installed on your system. Clone this repository:
 
 ```bash
 git clone https://github.com/nssharmaofficial/ImageCaption_Flickr30k
 ```
 
-To install the requirements use:
+Install the required dependencies by running:
 
 ```bash
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-- You can download the images and captions [here](https://www.kaggle.com/datasets/adityajn105/flickr30k).
-- Captions were split 70/30 into `train_list.txt` and `val_list.txt`.
+### Dataset Preparation
 
-## Vocabulary
+- Download the **Flickr30k** images and captions from [this Kaggle dataset](https://www.kaggle.com/datasets/adityajn105/flickr30k).
+- Split captions into `train_list.txt` (90%) and `val_list.txt` (10%).
 
-To build a vocabulary with *word2index* and *index2word* dictionaries, run:
+## 🧠 Vocabulary
+
+To create the vocabulary with *word2index* and *index2word* mappings, run:
 
 ```bash
-vocab.py captions.txt vocabulary.txt 5000
+python code/vocab.py captions.txt vocabulary.txt 5000
 ```
 
-where the first argument defines the text file from which the vocabulary will be built, the second defines the text file in which the *word2index* dictionary will be saved and the last defines the vocabulary size (including the 4 predefined tokens: `<pad>`, `<sos>`, `<eos>` and `<unk>`)
+- The first argument: Input file containing captions.
+- The second argument: Output file for the vocabulary.
+- The third argument: Maximum vocabulary size (includes 4 special tokens: `<pad>`, `<sos>`, `<eos>`, and `<unk>`).
 
-## Dataset
+## 📚 Dataset Class
 
-Custom class `ImageCaptionDataset()` holds a list of samples where each sample is a dictionary containing the image file ID and the caption of that image as a list of word indices. The caption is enriched by `<sos>` and `<eos>` token at the beggining and end of caption respectively.
+The custom class `ImageCaptionDataset()` holds samples, where each sample contains:
 
-The `__getitem__` returns an image (preprocessed, as tensor) and the caption as a list of word indices.
+- **Image File ID**
+- **Caption**: As a list of word indices, enriched with `<sos>` and `<eos>` tokens at the beginning and end, respectively.
 
-The function:
+The `__getitem__()` method returns:
+
+- Preprocessed image (as a tensor)
+- Caption as a list of word indices
+
+To load data efficiently, use:
 
 ```python
-get_data_loader(train_data, batch_size = config.BATCH, pad_index = vocab.PADDING_INDEX)
+get_data_loader(train_data, batch_size=config.BATCH, pad_index=vocab.PADDING_INDEX)
 ```
 
-returns a data loader where each caption in a batch is padded with `vocab.PADDING_INDEX` which is in this case `0` to reach the length of longest caption in the batch (using `pad_sequence`)
+Captions are padded to the length of the longest caption in the batch using `vocab.PADDING_INDEX` (0).
 
-You can check the data loader by running `dataset.py`.
+Run [dataset.py](./code/dataset.py) to check the data loader as well as to sort the training and validation captions.
 
-## Model
+<img src="./docs/dataloader.png" alt="dataloader" width="500"/>
 
-The whole model consists of 3 parts:
+## 🧩 Model Overview
 
-- encoder
-- embeddings
-- decoder
+<img src="./docs/workflow.png" alt="workflow" width="600"/>
 
-Running `model.py` will perform one forward operation of the whole model (with randomly initialized inputs). The results might help you to understand the dimensions of the outputs better.
+The model consists of three main components:
 
-### Encoder
+1. **Encoder**
+2. **Embeddings**
+3. **Decoder**
 
-Image encoder is used to obtain features from images. The encoder consists of pretrained Resnet50 model with the last layer removed, and a linear layer with the output dimension of `(IMAGE_EMB_DIM)`.
+You can test the model by running [`model.py`](./code/model.py), which performs a forward pass with random inputs, helping you understand the output dimensions.
 
-### Embeddings
+### 🖼️ Encoder
 
-Embedding layer is used to obtain embedded representation (as a dense vector) of captions of dimension `(WORD_EMB_DIM)`.  When training the model, the embedding layer is updated to learn better word representations through the optimization process.
+The encoder extracts features from images using a pretrained **ResNet50** model (with the last layer removed) and a linear layer. The final output dimension is `(IMAGE_EMB_DIM)`.
 
-### Decoder
+### 📝 Embeddings
 
-Decoder taking as input for the LSTM layer the concatenation of features obtained from the encoder and embedded captions obtained from the embedding layer. Hidden and cell states are zero initialized. Final classifier is a linear layer with output dimension of `(VOCAB_SIZE)`.
+An embedding layer transforms captions into dense vector representations of dimension `(WORD_EMB_DIM)`. During training, the embedding layer learns better word representations.
 
-## Configurations
+### 🗣️ Decoder
 
-For running other files it is necessary to check the `config.py` and change it accordingly to your wish and situation:
+The decoder uses an LSTM to generate captions. It takes the word embeddings as input and outputs probabilities for the next word in the sequence.
 
-```python
-self.DEVICE = torch.device("cuda:0")
+**Implementation Details:**
 
-self.BATCH = 32
-self.EPOCHS = 5
+- LSTM: Processes the sequence of word embeddings.
+- Fully connected layer: Outputs word probabilities for each word in the vocabulary.
+- LogSoftmax: Applied to convert raw scores to probabilities.
 
-self.VOCAB_FILE = 'word2index5000.txt'
-self.VOCAB_SIZE = 5000
+## ⚙️ Configuration
 
-self.NUM_LAYER = 1
-self.IMAGE_EMB_DIM = 512
-self.WORD_EMB_DIM = 512
-self.HIDDEN_DIM = 1024
-self.LR = 0.001
+Customize settings in `config.py` as needed.
 
-self.EMBEDDING_WEIGHT_FILE = 'checkpoints/embeddings-32B-1024H-1L-e5.pt'
-self.ENCODER_WEIGHT_FILE = 'checkpoints/encoder-32B-1024H-1L-e5.pt'
-self.DECODER_WEIGHT_FILE = 'checkpoints/decoder-32B-1024H-1L-e5.pt'
+> **Note**: Ensure you have created the `checkpoints` and `saved` directories in the `code` folder to store the model's weights.
 
-self.ROOT = os.path.join(os.path.expanduser('~'), 'Github', 'ImageCaption_Flickr30k')
+## 🏋️‍♂️ Training and Evaluation
+
+To train the model, run [`train.py`](./code/train.py)
+
+During training, captions are generated word by word in a loop of length `SEQ_LENGTH-1`. The hidden and cell states are initialized as tensors of size `(NUM_LAYER, BATCH, HIDDEN_DIM)`, where `HIDDEN_DIM` is set to `IMAGE_EMB_DIM`.
+
+You can visualize results on validation data by running [`test_show.py`](./code/test_show.py)
+
+This script will display images along with real captions, generated captions, and BLEU scores (BLEU-1 and BLEU-2) to evaluate caption quality.
+
+### 📊 Caption Generation
+
+Captions are generated word by word starting with the `<sos>` token. Each predicted word is used as input for the next step. The process continues until the `<eos>` token is generated or the maximum length is reached.
+
+Below are examples with a trained model:
+
+<img src="./docs/example1.png" alt="example" width="500"/>
+<img src="./docs/example2.png" alt="example" width="500"/>
+
+## 📷 Generating Captions on Sample Images
+
+To generate captions for a new image, run:
+
+```bash
+python code/predict_sample.py sample_image.jpg
 ```
 
-If not done already, create specific folder `checkpoints` in `code` folder to store weights of trained model.
+This will output captions generated by the model. Below are some examples:
 
-## Training and evaluating data
-
-To train the model run `train.py`.
-
-**Note**: during the training and evaluation, the model is used to generate captions ***word-by-word*** over the `SEQ_LENGTH-1` loop (ignoring the last `<eos>` token), therefore the dimension of the embedded captions before the concatenation will be `(length = j+1, BATCH, WORD_EMB_DIM)`, and the dimension of features will be `(j+1, BATCH,  IMAGE_EMB_DIM)`. The hidden and cell states are initialized to a tensor of size `(NUM_LAYER, BATCH, HIDDEN_DIM)` where `HIDDEN_DIM = IMAGE_EMB_DIM + WORD_EMB_DIM`.
-
-So for example the caption: `<sos>` dog is running outside `<eos>` will be trained over loop:
-
-- starting with `<sos>` token: `<sos>` <word_to_be_predicted> → then <word_to_be_predicted> is compared to the original next word
-- `<sos>` dog <word_to_be_predicted>
-- `<sos>` dog is <word_to_be_predicted>
-- `<sos>` dog is running <word_to_be_predicted>
-- `<sos>` dog is running outside <word_to_be_predicted> → so that we learn to predict the `<eos>` as well
-
-**Note**: The `train_whole_sequence.py` uses different approach of training, using the whole captions:
-
-- LSTM layer takes input and computes the output of length = `SEQ_LENGTH` (instead of length = `j+1` as in `train.py`)
-- to make this work, the `features` have dimension `(SEQ_LENGTH, BATCH, IMAGE_EMB_DIM)` (instead of `(j+1, BATCH, IMAGE_EMB_DIM)`) in order to be concatenated with the `emb_captions_batch` of size `(SEQ_LENGTH, BATCH, WORD_EMB_DIM)`
-
-After training the model you can visualize the results on validation data by running `test_show.py`. It will show the image along with the title containing real captions, generated captions and the BLEU score (1 and 2).
-
-Captions are generated **word-by-word** starting with the SOS token. Next predicted word IDs are then being appended for the next LSTM input.
-
-Model with **B = 32** and **HIDDEN_DIM = 512**:
-
-![Examples](./examples/32B-1024H_1.png ) ![Examples](./examples/32B-1024H_2.png )
-
-## Generating captions on sample image
-
-Run `predict_sample.py  sample_image.jpg` to generate captions on an image (in ROOT path).
-
-Model with **B = 32** and **HIDDEN_DIM = 512**:
-
-![Examples](./examples/32B-1024H_sample1.png ) ![Examples](./examples/32B-1024H_sample2.png )
+<img src="./docs/example3.png" alt="example" width="450"/>
+<img src="./docs/example4.png" alt="example" width="550"/>

@@ -1,5 +1,4 @@
 import torch
-import torch._utils
 import torch.nn as nn
 import torchvision.models as models
 from typing import Tuple
@@ -7,17 +6,17 @@ from config import Config
 
 
 class Encoder(nn.Module):
+    """
+    Image encoder to obtain features from images using a pretrained ResNet-50 model.
+    The last layer of ResNet-50 is removed, and a linear layer is added to transform
+    the output to the desired feature dimension.
+
+    Args:
+        image_emb_dim (int): Final output dimension of image features.
+        device (torch.device): Device to run the model on (CPU or GPU).
+    """
 
     def __init__(self, image_emb_dim: int, device: torch.device):
-        """
-        Image encoder to obtain features from images. Contains pretrained Resnet50 with last layer removed
-        and a linear layer with the output dimension of (BATCH, image_emb_dim)
-
-        Args:
-            - image_emb_dim (int): final output dimension of features
-            - device (torch.device)
-        """
-
         super(Encoder, self).__init__()
         self.image_emb_dim = image_emb_dim
         self.device = device
@@ -25,91 +24,81 @@ class Encoder(nn.Module):
         print(f"Encoder:\n \
                 Encoder dimension: {self.image_emb_dim}")
 
-        # pretrained Resnet50 model with freezed parameters
+        # Load pretrained ResNet-50 model and freeze its parameters
         resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
         for param in resnet.parameters():
             param.requires_grad_(False)
 
-        # remove last layer
+        # Remove the last layer of ResNet-50
         modules = list(resnet.children())[:-1]
         self.resnet = nn.Sequential(*modules)
 
-        # define a final classifier
+        # Define a final classifier
         self.fc = nn.Linear(resnet.fc.in_features, self.image_emb_dim)
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """
-        Forward operation of encoder, passing images through resnet and then linear layer.
+        Forward pass through the encoder.
 
         Args:
-            - images (torch.Tensor): (BATCH, 3, 224, 224)
+            images (torch.Tensor): Input images of shape (BATCH, 3, 224, 224).
 
         Returns:
-            - features (torch.Tensor): (BATCH, IMAGE_EMB_DIM)
+            torch.Tensor: Image features of shape (BATCH, IMAGE_EMB_DIM).
         """
-
         features = self.resnet(images)
-        # features: (BATCH, 2048, 1, 1)
-
+        # Reshape features to (BATCH, 2048)
         features = features.reshape(features.size(0), -1).to(self.device)
-        # features: (BATCH, 2048)
-
+        # Pass features through final linear layer
         features = self.fc(features).to(self.device)
-        # features: (BATCH, IMAGE_EMB_DIM)
-
         return features
 
 
 class Decoder(nn.Module):
+    """
+    Decoder that uses an LSTM to generate captions from embedded words and encoded image features.
+    The hidden and cell states of the LSTM are initialized using the encoded image features.
+
+    Args:
+        word_emb_dim (int): Dimension of word embeddings.
+        hidden_dim (int): Dimension of the LSTM hidden state.
+        num_layers (int): Number of LSTM layers.
+        vocab_size (int): Size of the vocabulary (output dimension of the final linear layer).
+        device (torch.device): Device to run the model on (CPU or GPU).
+    """
 
     def __init__(self,
-                 image_emb_dim: int,
                  word_emb_dim: int,
                  hidden_dim: int,
                  num_layers: int,
                  vocab_size: int,
                  device: torch.device):
-        """
-        Decoder taking as input for the LSTM layer the concatenation of features obtained from the encoder
-        and embedded captions obtained from the embedding layer. Hidden and cell states are zero initialized.
-        Final classifier is a linear layer with output dimension of the size of a vocabulary.
-
-        Args:
-            - image_emb_dim (int): the dimension of features obtained from the encoder
-            - word_emb_dim (int): the dimension of word embeddings from embedding layer
-            - hidden_dim (int): capacity of LSTM (dimension: image_emb_dim + word_emb_dim)
-            - num_layers (int): number of LSTM layers
-            - vocab_size (int): out_features of linear layer
-            - device (torch.device)
-        """
-
         super(Decoder, self).__init__()
 
-        self.config = Config()
-
-        self.image_emd_dim = image_emb_dim
         self.word_emb_dim = word_emb_dim
         self.hidden_dim = hidden_dim
-        self.num_layer = num_layers
+        self.num_layers = num_layers
         self.vocab_size = vocab_size
         self.device = device
 
-        self.hidden_state_0 = nn.Parameter(torch.zeros((self.num_layer, 1, self.hidden_dim)))
-        self.cell_state_0 = nn.Parameter(torch.zeros((self.num_layer, 1, self.hidden_dim)))
+        # Initialize hidden and cell states
+        self.hidden_state_0 = nn.Parameter(torch.zeros((self.num_layers, 1, self.hidden_dim)))
+        self.cell_state_0 = nn.Parameter(torch.zeros((self.num_layers, 1, self.hidden_dim)))
 
         print(f"Decoder:\n \
-                Encoder Size:  {self.image_emd_dim},\n \
                 Embedding Size: {self.word_emb_dim},\n \
                 LSTM Capacity: {self.hidden_dim},\n \
-                Number of layers: {self.num_layer},\n \
+                Number of Layers: {self.num_layers},\n \
                 Vocabulary Size: {self.vocab_size},\n \
                 ")
 
-        self.lstm = nn.LSTM(self.image_emd_dim + self.word_emb_dim,
+        # Define LSTM layer
+        self.lstm = nn.LSTM(self.word_emb_dim,
                             self.hidden_dim,
-                            num_layers=self.num_layer,
+                            num_layers=self.num_layers,
                             bidirectional=False)
 
+        # Define final linear layer with LogSoftmax activation
         self.fc = nn.Sequential(
             nn.Linear(self.hidden_dim, self.vocab_size),
             nn.LogSoftmax(dim=2)
@@ -117,60 +106,53 @@ class Decoder(nn.Module):
 
     def forward(self,
                 embedded_captions: torch.Tensor,
-                features: torch.Tensor,
                 hidden: torch.Tensor,
                 cell: torch.Tensor) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
-        Forward operation of decoder. The LSTM input (concatenation of embedded_captions and features)
-        is passed through LSTM and then linear layer.
+        Forward pass through the decoder.
 
         Args:
-            - embedded_captions(torch.Tensor): (SEQ_LENGTH, BATCH, WORD_EMB_DIM)
-            - features (torch.Tensor): (SEQ_LENGTH, BATCH, IMAGE_EMB_DIM)
-            - hidden (torch.Tensor): (NUM_LAYER, BATCH, HIDDEN_DIM)
-            - cell (torch.Tensor): (NUM_LAYER, BATCH, HIDDEN_DIM)
+            embedded_captions (torch.Tensor): Embedded captions of shape (SEQ_LEN, BATCH, WORD_EMB_DIM).
+            hidden (torch.Tensor): LSTM hidden state of shape (NUM_LAYER, BATCH, HIDDEN_DIM).
+            cell (torch.Tensor): LSTM cell state of shape (NUM_LAYER, BATCH, HIDDEN_DIM).
 
         Returns:
-            - output (torch.Tensor): (SEQ_LENGTH, BATCH, VOCAB_SIZE)
-            - (hidden, cell) (torch.Tensor, torch.Tensor): (NUM_LAYER, BATCH, HIDDEN_DIM)
+            Tuple:
+                - output (torch.Tensor): Output logits of shape (SEQ_LEN, BATCH, VOCAB_SIZE).
+                - (hidden, cell) (Tuple[torch.Tensor, torch.Tensor]): Updated hidden and cell states.
         """
-
-        lstm_input = torch.cat((embedded_captions, features), dim=2)
-
-        output, (hidden, cell) = self.lstm(lstm_input, (hidden, cell))
-        # output : (SEQ_LENGTH, BATCH, HIDDEN_DIM)
-        # hidden : (NUM_LAYER, BATCH, HIDDEN_DIM)
-
-        output = output.to(self.device)
-
+        # Pass through LSTM
+        output, (hidden, cell) = self.lstm(embedded_captions, (hidden, cell))
+        # Pass through final linear layer
         output = self.fc(output)
-        # output : (SEQ_LENGTH, BATCH, VOCAB_SIZE)
-
         return output, (hidden, cell)
 
 
-def get_acc(output, target):
-    # output: (BATCH, VOCAB_SIZE)
-    # output: (BATCH, --WORD--)
+def get_acc(output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """
+    Compute the accuracy of predictions compared to targets.
 
+    Args:
+        output (torch.Tensor): Model output of shape (BATCH, VOCAB_SIZE).
+        target (torch.Tensor): Ground truth of shape (BATCH,).
+
+    Returns:
+        torch.Tensor: Accuracy as a scalar tensor.
+    """
     probability = torch.exp(output)
-
-    # get the maximum probability among dim=1 (VOCAB_SIZE) -> returns: value, index
-    # get the index ([1])
+    # Get the index of the maximum probability
     equality = (target == probability.max(dim=1)[1])
     return equality.float().mean()
 
 
 if __name__ == '__main__':
-
     config = Config()
 
     encoder = Encoder(image_emb_dim=config.IMAGE_EMB_DIM, device=config.DEVICE)
-    emb_layer = torch.nn.Embedding(num_embeddings=config.VOCAB_SIZE,
-                                   embedding_dim=config.WORD_EMB_DIM,
-                                   padding_idx=0)
-    decoder = Decoder(image_emb_dim=config.IMAGE_EMB_DIM,
-                      word_emb_dim=config.WORD_EMB_DIM,
+    emb_layer = nn.Embedding(num_embeddings=config.VOCAB_SIZE,
+                             embedding_dim=config.WORD_EMB_DIM,
+                             padding_idx=0)
+    decoder = Decoder(word_emb_dim=config.WORD_EMB_DIM,
                       hidden_dim=config.HIDDEN_DIM,
                       num_layers=config.NUM_LAYER,
                       vocab_size=config.VOCAB_SIZE,
@@ -180,34 +162,29 @@ if __name__ == '__main__':
     emb_layer = emb_layer.to(config.DEVICE)
     decoder = decoder.to(config.DEVICE)
 
-    # create random tensor of images and captions
-    # suppose captions have SEQ_LEN = 10 (second dimension)
+    # Create random tensor of images and captions
     images = torch.randn((32, 3, 256, 256)).to(config.DEVICE)
     captions = torch.randint(low=1, high=100, size=(32, 10), dtype=torch.int).to(config.DEVICE)
 
-    # pass images through encoder
-    features = encoder.forward(images=images)
+    # Pass images through encoder
+    features = encoder(images=images)
     features = features.unsqueeze(0)
-    features = features.repeat(10, 1, 1)
-    print('Features size: ', features.size())  # (SEQ_LEN, BATCH, IMAGE_EMD_DIM)
+    print('Features size: ', features.size())  # (1, BATCH, IMAGE_EMB_DIM)
 
-    # pass captions through embedding layer
-    embedded_captions = emb_layer.forward(captions)
+    # Initialize hidden and cell state
+    hidden = features.repeat(config.NUM_LAYER, 1, 1)
+    cell = features.repeat(config.NUM_LAYER, 1, 1)
+    # hidden and cell: (NUM_LAYER, BATCH, HIDDEN_DIM)
+
+    # Pass captions through embedding layer
+    embedded_captions = emb_layer(captions)
     embedded_captions = embedded_captions.permute(1, 0, 2)
     print('Embedded captions size: ', embedded_captions.size())  # (SEQ_LEN, BATCH, WORD_EMB_DIM)
 
-    # initialize hidden and cell to be of size: (NUM_LAYER, BATCH, HIDDEN_DIM)
-    # note: HIDDEN_DIM = IMAGE_EMB_DIM + WORD_EMB_DIM
-    hidden = decoder.hidden_state_0.repeat(1, 32, 1).to(config.DEVICE)
-    cell = decoder.cell_state_0.repeat(1, 32, 1).to(config.DEVICE)
-
-    # pass embedded captions and features through decoder (they will be concatenated)
-    output, (hidden_state, cell_state) = decoder.forward(
-        embedded_captions=embedded_captions,
-        features=features,
-        hidden=hidden,
-        cell=cell
-        )
+    # Pass embedded captions and features through decoder
+    output, (hidden_state, cell_state) = decoder(embedded_captions=embedded_captions,
+                                                 hidden=hidden,
+                                                 cell=cell)
 
     print('Output size: ', output.size())        # (SEQ_LEN, BATCH, VOCAB_SIZE)
     print('Hidden size: ', hidden_state.size())  # (NUM_LAYER, BATCH, HIDDEN_DIM)
